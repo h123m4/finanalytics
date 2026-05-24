@@ -5,6 +5,9 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import base64
 from datetime import datetime
+from urllib.parse import quote
+import requests
+import xml.etree.ElementTree as ET
 
 # ==================== НОРМАЛИЗАЦИЯ ДАННЫХ ====================
 COLUMN_ALIASES = {
@@ -40,6 +43,8 @@ def add_calculated_metrics(df: pd.DataFrame) -> pd.DataFrame:
 
     if 'Оборотные активы' in df.columns and 'Краткосрочные обязательства' in df.columns:
         df['Ликвидность'] = df['Оборотные активы'] / df['Краткосрочные обязательства']
+        # Отсекаем явно нереалистичные значения, чтобы не искажать аналитику.
+        df.loc[(df['Ликвидность'] < 0) | (df['Ликвидность'] > 20), 'Ликвидность'] = pd.NA
 
     if 'Дебиторская задолженность' in df.columns and 'Выручка' in df.columns:
         df['Дней дебиторки'] = (df['Дебиторская задолженность'] / df['Выручка']) * 365
@@ -155,6 +160,10 @@ st.markdown("""
         overflow: hidden;
     }
 
+    html, body, [data-testid="stAppViewContainer"] {
+        scroll-behavior: smooth;
+    }
+
     .custom-header::after {
         content: "";
         position: absolute;
@@ -171,7 +180,7 @@ st.markdown("""
     }
 
     .content-wrapper {
-        margin-top: 66px;
+        margin-top: 84px;
         flex: 1;
         padding: 0 6px;
     }
@@ -307,6 +316,35 @@ st.markdown("""
     .stDownloadButton > button,
     a[download] {
         border-radius: 8px !important;
+    }
+
+    /* Единый стиль кнопок в стиле Upload */
+    .stButton > button,
+    .stDownloadButton > button,
+    [data-testid="stFileUploader"] button {
+        background: linear-gradient(180deg, #ffffff 0%, #eef7ff 100%) !important;
+        color: var(--itf-blue-900) !important;
+        border: 1px solid rgba(145, 187, 219, 0.92) !important;
+        border-radius: 12px !important;
+        padding: 0.5rem 1rem !important;
+        font-weight: 600 !important;
+        box-shadow: 0 6px 16px rgba(21, 64, 110, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease !important;
+    }
+
+    .stButton > button:hover,
+    .stDownloadButton > button:hover,
+    [data-testid="stFileUploader"] button:hover {
+        transform: translateY(-1px);
+        border-color: rgba(86, 154, 207, 0.95) !important;
+        box-shadow: 0 10px 20px rgba(18, 72, 126, 0.16), 0 0 0 2px rgba(111, 226, 245, 0.2) !important;
+    }
+
+    .stButton > button:active,
+    .stDownloadButton > button:active,
+    [data-testid="stFileUploader"] button:active {
+        transform: translateY(0);
+        box-shadow: 0 4px 10px rgba(18, 72, 126, 0.12), inset 0 1px 2px rgba(12, 46, 87, 0.12) !important;
     }
 
     [data-testid="stFileUploader"] {
@@ -522,32 +560,361 @@ def export_to_html(df, recommendations):
     html_content += f"<h2>Данные по периодам</h2>{df[['Период','Выручка','Себестоимость','Рентабельность (%)','Доля затрат (%)'] + (['Ликвидность'] if 'Ликвидность' in df.columns else [])].to_html(index=False)}<p style='text-align:center'>Сгенерировано системой финансового анализа</p></body></html>"
     return html_content
 
-# ==================== ЗАГРУЗКА ФАЙЛА ====================
-uploaded_file = st.session_state.get("main_uploader")
-if uploaded_file is None:
-    st.markdown("""
-    <div class="data-guide">
-        <h4>Какие данные загружать (Excel / 1С / CRM)</h4>
-        <p><b>Обязательные:</b> Период, Выручка, Себестоимость</p>
-        <p><b>Желательные:</b> Оборотные активы, Краткосрочные обязательства, Запасы, Дебиторская задолженность, Кредиторская задолженность, Коммерческие и Управленческие расходы</p>
-        <p>Система автоматически распознаёт типовые синонимы из выгрузок 1С (например: «Выручка, руб.», «Текущие обязательства», «Дебиторка»).</p>
-    </div>
-    """, unsafe_allow_html=True)
-uploaded_file = st.file_uploader(
-    "Загрузить файл",
-    type=["xlsx", "xls", "csv"],
-    help="Выгрузка из 1С, CRM или бухгалтерии",
-    label_visibility="collapsed",
-    key="main_uploader"
+
+def _pick_first_present(record, field_names):
+    for name in field_names:
+        if name in record and record[name] not in [None, ""]:
+            return record[name]
+    return None
+
+
+def _to_month(value):
+    if value is None:
+        return None
+    text = str(value).replace("T", " ").replace("Z", "")
+    dt = pd.to_datetime(text, errors="coerce")
+    if pd.isna(dt):
+        return None
+    return dt.strftime("%Y-%m")
+
+
+def _to_float(value):
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def _fetch_odata_rows(url, auth, timeout=40):
+    rows = []
+    next_url = url
+    while next_url:
+        resp = requests.get(next_url, auth=auth, timeout=timeout)
+        resp.raise_for_status()
+        payload = resp.json()
+        rows.extend(payload.get("value", []))
+        next_url = payload.get("@odata.nextLink") or payload.get("odata.nextLink")
+        if next_url and not next_url.lower().startswith("http"):
+            base = url.split("/odata/standard.odata/")[0]
+            next_url = f"{base}{next_url}"
+    return rows
+
+
+def _first_field_name(record, candidates):
+    for c in candidates:
+        if c in record:
+            return c
+    return None
+
+
+def _auto_liquidity_from_accounting(odata_base_url, username, password, year, collections):
+    chart_candidates = [
+        c for c in collections
+        if ("ChartOfAccounts" in c or "ПланыСчетов" in c or "ПланСчетов" in c)
+        and "Хозрасчет" in c
+        and "RecordType" not in c
+    ]
+    reg_candidates = [c for c in collections if ("AccountingRegister" in c or "РегистрБухгалтерии" in c) and "Хозрасчет" in c and "RecordType" not in c]
+    if not chart_candidates or not reg_candidates:
+        return None
+
+    auth = (username, password)
+    chart_url = f"{odata_base_url}{quote(chart_candidates[0], safe='/()_')}?$format=json"
+    chart_rows = _fetch_odata_rows(chart_url, auth)
+    if not chart_rows:
+        return None
+
+    key_field = _first_field_name(chart_rows[0], ["Ref_Key", "Ссылка", "Key"])
+    code_field = _first_field_name(chart_rows[0], ["Code", "Код"])
+    if not key_field or not code_field:
+        return None
+
+    key_to_code = {}
+    for r in chart_rows:
+        k = str(r.get(key_field, "")).lower()
+        code = str(r.get(code_field, "")).strip()
+        if k and code:
+            key_to_code[k] = code
+
+    reg_url = f"{odata_base_url}{quote(reg_candidates[0], safe='/()_')}?$format=json"
+    reg_rows_raw = _fetch_odata_rows(reg_url, auth)
+    reg_rows = []
+    for r in reg_rows_raw:
+        if isinstance(r, dict) and isinstance(r.get("RecordSet"), list):
+            reg_rows.extend([x for x in r["RecordSet"] if isinstance(x, dict)])
+        elif isinstance(r, dict):
+            reg_rows.append(r)
+    if not reg_rows:
+        return None
+
+    debit_key_candidates = ["СчетДт_Key", "AccountDt_Key", "AccountDr_Key", "СчетДт"]
+    credit_key_candidates = ["СчетКт_Key", "AccountCt_Key", "AccountCr_Key", "СчетКт"]
+    amount_candidates = ["Сумма", "Amount", "DocumentAmount", "СуммаДокумента"]
+    date_candidates = ["Period", "Период", "Date", "Дата"]
+
+    # Более корректная учебная модель для коэффициента текущей ликвидности:
+    # активы = запасы + деньги + дебиторка; обязательства = краткосрочные долги.
+    asset_prefixes = ("10", "11", "15", "16", "19", "41", "43", "44", "45", "50", "51", "52", "55", "57", "58", "97")
+    asset_exact = ("62.01", "62.1", "62")
+    liab_prefixes = ("66", "67", "68", "69", "70", "71", "73", "75", "76")
+    liab_exact = ("60.01", "60.1", "60", "62.02", "62.2", "62.ОТ", "62.OT")
+
+    def _is_asset(code):
+        if not code:
+            return False
+        c = str(code).upper()
+        return c.startswith(asset_prefixes) or c in asset_exact
+
+    def _is_liab(code):
+        if not code:
+            return False
+        c = str(code).upper()
+        return c.startswith(liab_prefixes) or c in liab_exact
+
+    month_asset_delta = {}
+    month_liab_delta = {}
+
+    for row in reg_rows:
+        month = _to_month(_pick_first_present(row, date_candidates))
+        if month is None or month < f"{year}-01" or month > f"{year}-12":
+            continue
+
+        amount = _to_float(_pick_first_present(row, amount_candidates))
+        if amount is None:
+            continue
+
+        dt_key_raw = _pick_first_present(row, debit_key_candidates)
+        ct_key_raw = _pick_first_present(row, credit_key_candidates)
+        dt_code = key_to_code.get(str(dt_key_raw).lower(), "")
+        ct_code = key_to_code.get(str(ct_key_raw).lower(), "")
+
+        if _is_asset(dt_code):
+            month_asset_delta[month] = month_asset_delta.get(month, 0.0) + amount
+        if _is_asset(ct_code):
+            month_asset_delta[month] = month_asset_delta.get(month, 0.0) - amount
+
+        if _is_liab(ct_code):
+            month_liab_delta[month] = month_liab_delta.get(month, 0.0) + amount
+        if _is_liab(dt_code):
+            month_liab_delta[month] = month_liab_delta.get(month, 0.0) - amount
+
+    months = [f"{year}-{m:02d}" for m in range(1, 13)]
+    assets = []
+    liabs = []
+    a_running = 0.0
+    l_running = 0.0
+    for m in months:
+        a_running += month_asset_delta.get(m, 0.0)
+        l_running += month_liab_delta.get(m, 0.0)
+        assets.append(max(a_running, 0.0))
+        liabs.append(max(l_running, 1000.0))
+
+    if sum(assets) == 0:
+        return None
+    df_liq = pd.DataFrame({"Период": months, "Оборотные активы": assets, "Краткосрочные обязательства": liabs})
+    # Защита от выбросов: если обязательства почти нулевые, ликвидность в таком месяце не показываем.
+    liq = df_liq["Оборотные активы"] / df_liq["Краткосрочные обязательства"]
+    liq = liq.where((liq >= 0) & (liq <= 20))
+    if liq.notna().sum() == 0:
+        return None
+    return df_liq
+
+
+def debug_1c_collections_and_fields(odata_base_url, username, password):
+    odata_base_url = odata_base_url.strip().rstrip("/") + "/"
+    auth = (username, password)
+    service_resp = requests.get(odata_base_url, auth=auth, timeout=35)
+    service_resp.raise_for_status()
+    root = ET.fromstring(service_resp.text)
+    collections = [c.attrib.get("href", "") for c in root.findall(".//{http://www.w3.org/2007/app}collection")]
+
+    chart_candidates = [
+        c for c in collections
+        if ("ChartOfAccounts" in c or "ПланыСчетов" in c or "ПланСчетов" in c)
+        and "Хозрасчет" in c
+        and "RecordType" not in c
+    ]
+    reg_candidates = [c for c in collections if ("AccountingRegister" in c or "РегистрБухгалтерии" in c) and "Хозрасчет" in c and "RecordType" not in c]
+
+    sample = {"collections_found": {"chart": chart_candidates, "register": reg_candidates}}
+    if chart_candidates:
+        c_url = f"{odata_base_url}{quote(chart_candidates[0], safe='/()_')}?$format=json&$top=1"
+        c_rows = _fetch_odata_rows(c_url, auth)
+        sample["chart_fields"] = list(c_rows[0].keys()) if c_rows else []
+        sample["chart_sample"] = c_rows[0] if c_rows else {}
+    else:
+        sample["chart_fields"] = []
+        sample["chart_sample"] = {}
+
+    if reg_candidates:
+        r_url = f"{odata_base_url}{quote(reg_candidates[0], safe='/()_')}?$format=json&$top=1"
+        r_rows = _fetch_odata_rows(r_url, auth)
+        sample["register_fields"] = list(r_rows[0].keys()) if r_rows else []
+        sample["register_sample"] = r_rows[0] if r_rows else {}
+    else:
+        sample["register_fields"] = []
+        sample["register_sample"] = {}
+
+    return sample
+
+
+def fetch_1c_monthly_revenue_cost(odata_base_url, username, password, year):
+    odata_base_url = odata_base_url.strip().rstrip("/") + "/"
+
+    service_resp = requests.get(odata_base_url, auth=(username, password), timeout=35)
+    service_resp.raise_for_status()
+    root = ET.fromstring(service_resp.text)
+    collections = [c.attrib.get("href", "") for c in root.findall(".//{http://www.w3.org/2007/app}collection")]
+
+    sales_candidates = [c for c in collections if "Реализац" in c]
+    purchase_candidates = [c for c in collections if "Поступлен" in c]
+    if not sales_candidates and not purchase_candidates:
+        raise ValueError("В OData не найдены объекты продаж/покупок. Проверь настройки REST-сервиса в 1С.")
+
+    date_fields = ["Date", "Дата", "Период", "DocumentDate", "ДатаДокумента"]
+    amount_fields = ["СуммаДокумента", "DocumentTotal", "Amount", "TotalAmount", "Сумма"]
+
+    def load_monthly(candidates):
+        monthly = {}
+        for name in candidates:
+            encoded_name = quote(name, safe="/()_")
+            url = f"{odata_base_url}{encoded_name}?$format=json"
+            resp = requests.get(url, auth=(username, password), timeout=35)
+            if resp.status_code >= 400:
+                continue
+            payload = resp.json()
+            for row in payload.get("value", []):
+                month = _to_month(_pick_first_present(row, date_fields))
+                amount = _to_float(_pick_first_present(row, amount_fields))
+                if month is None or amount is None:
+                    continue
+                if month < f"{year}-01" or month > f"{year}-12":
+                    continue
+                monthly[month] = monthly.get(month, 0.0) + amount
+        return monthly
+
+    sales = load_monthly(sales_candidates)
+    purchases = load_monthly(purchase_candidates)
+    months = [f"{year}-{m:02d}" for m in range(1, 13)]
+
+    df_1c = pd.DataFrame({
+        "Период": months,
+        "Выручка": [sales.get(m, 0.0) for m in months],
+        "Себестоимость": [purchases.get(m, 0.0) for m in months],
+    })
+
+    liq_df = _auto_liquidity_from_accounting(odata_base_url, username, password, year, collections)
+    if liq_df is not None:
+        df_1c = df_1c.merge(liq_df, on="Период", how="left")
+
+    if df_1c["Выручка"].sum() == 0 and df_1c["Себестоимость"].sum() == 0:
+        raise ValueError("Получены нулевые суммы. Проверь права OData-пользователя и включенные объекты REST.")
+    return df_1c
+
+# ==================== ЗАГРУЗКА ДАННЫХ ====================
+source_mode = st.radio(
+    "Источник данных",
+    ["Excel / CSV", "1С OData"],
+    horizontal=True
 )
 
-# ==================== АНАЛИЗ ДАННЫХ ====================
-if uploaded_file is not None:
-    try:
-        if uploaded_file.name.endswith('csv'):
-            df = pd.read_csv(uploaded_file)
+uploaded_file = None
+df = None
+
+if source_mode == "Excel / CSV":
+    uploaded_file = st.session_state.get("main_uploader")
+    if uploaded_file is None:
+        st.markdown("""
+        <div class="data-guide">
+            <h4>Какие данные загружать (Excel / 1С / CRM)</h4>
+            <p><b>Обязательные:</b> Период, Выручка, Себестоимость</p>
+            <p><b>Желательные:</b> Оборотные активы, Краткосрочные обязательства, Запасы, Дебиторская задолженность, Кредиторская задолженность, Коммерческие и Управленческие расходы</p>
+            <p>Система автоматически распознаёт типовые синонимы из выгрузок 1С (например: «Выручка, руб.», «Текущие обязательства», «Дебиторка»).</p>
+        </div>
+        """, unsafe_allow_html=True)
+    uploaded_file = st.file_uploader(
+        "Загрузить файл",
+        type=["xlsx", "xls", "csv"],
+        help="Выгрузка из 1С, CRM или бухгалтерии",
+        label_visibility="collapsed",
+        key="main_uploader"
+    )
+else:
+    st.markdown("""
+    <div class="data-guide">
+        <h4>Автосбор из 1С:Фреш (OData)</h4>
+        <p>Укажите параметры OData и нажмите «Синхронизировать с 1С».</p>
+    </div>
+    """, unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        odata_url = st.text_input("URL OData", placeholder="https://.../odata/standard.odata/")
+        odata_user = st.text_input("Пользователь OData", placeholder="odata.user")
+    with c2:
+        odata_pass = st.text_input("Пароль OData", type="password")
+        odata_year = st.number_input("Год", min_value=2020, max_value=2100, value=datetime.now().year, step=1)
+
+    if st.button("Синхронизировать с 1С"):
+        if not odata_url or not odata_user or not odata_pass:
+            st.warning("Заполните URL, логин и пароль OData.")
         else:
-            df = pd.read_excel(uploaded_file)
+            try:
+                with st.spinner("Подключение к 1С и загрузка данных..."):
+                    df = fetch_1c_monthly_revenue_cost(odata_url, odata_user, odata_pass, int(odata_year))
+                st.session_state["df_1c"] = df.copy()
+                st.success("Данные из 1С успешно загружены.")
+            except Exception as e:
+                st.error(f"Ошибка подключения к 1С: {e}")
+
+    if st.button("Диагностика 1С OData"):
+        if not odata_url or not odata_user or not odata_pass:
+            st.warning("Заполните URL, логин и пароль OData.")
+        else:
+            try:
+                diag = debug_1c_collections_and_fields(odata_url, odata_user, odata_pass)
+                st.session_state["odata_diag"] = diag
+                st.success("Диагностика собрана.")
+            except Exception as e:
+                st.error(f"Ошибка диагностики: {e}")
+
+    if "odata_diag" in st.session_state:
+        with st.expander("Результат диагностики 1С OData"):
+            st.json(st.session_state["odata_diag"])
+
+    if df is None and "df_1c" in st.session_state:
+        df = st.session_state["df_1c"].copy()
+
+    if df is not None and ('Оборотные активы' not in df.columns or 'Краткосрочные обязательства' not in df.columns):
+        st.markdown("**Дополнительно для расчета ликвидности**")
+        m1, m2 = st.columns(2)
+        with m1:
+            current_assets = st.number_input(
+                "Оборотные активы (на месяц, руб.)",
+                min_value=0.0,
+                value=350000.0,
+                step=10000.0
+            )
+        with m2:
+            short_liab = st.number_input(
+                "Краткосрочные обязательства (на месяц, руб.)",
+                min_value=1.0,
+                value=200000.0,
+                step=10000.0
+            )
+        if st.button("Применить для расчета ликвидности"):
+            df['Оборотные активы'] = float(current_assets)
+            df['Краткосрочные обязательства'] = float(short_liab)
+            st.session_state["df_1c"] = df.copy()
+            st.success("Поля для ликвидности добавлены.")
+
+# ==================== АНАЛИЗ ДАННЫХ ====================
+if uploaded_file is not None or df is not None:
+    try:
+        if df is None:
+            if uploaded_file.name.endswith('csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
         
         df = normalize_columns(df)
         df = add_calculated_metrics(df)
