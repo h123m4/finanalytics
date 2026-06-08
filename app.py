@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -7,6 +7,8 @@ import base64
 from datetime import datetime
 from urllib.parse import quote
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import xml.etree.ElementTree as ET
 
 # ==================== НОРМАЛИЗАЦИЯ ДАННЫХ ====================
@@ -382,6 +384,18 @@ st.markdown("""
         100% { box-shadow: 0 0 0 0 rgba(97, 189, 238, 0); }
     }
 
+    /* ── Стиль data_editor под data-guide ── */
+    [data-testid="stDataEditor"] > div {
+        border-radius: 12px !important;
+        border: 1px solid rgba(154, 206, 241, 0.85) !important;
+        overflow: hidden !important;
+        box-shadow: 0 8px 20px rgba(30, 93, 151, 0.1), inset 0 1px 0 rgba(255,255,255,0.7) !important;
+        background: linear-gradient(145deg, rgba(255,255,255,0.9) 0%, rgba(231,246,255,0.86) 100%) !important;
+    }
+    /* Скрыть нижний тулбар (добавить строку / скачать) */
+    [data-testid="stDataEditor"] [data-testid="glideDataEditorContainer"] + div,
+    [data-testid="stDataEditor"] .stDataFrameToolbar { display: none !important; }
+
     .data-guide {
         max-width: 860px;
         margin: 0.35rem 0 0.45rem;
@@ -487,19 +501,19 @@ st.markdown("""
 # ==================== ОСНОВНОЙ КОНТЕНТ (с отступом под хедер) ====================
 st.markdown('<div class="content-wrapper">', unsafe_allow_html=True)
 
-st.markdown("""
+st.markdown(f"""
 <div class="hero-aero">
     <div class="hero-grid">
         <div class="hero-tile">
-            <img src="https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=1200&q=80" alt="Аналитика" />
+            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAwIDQwMCI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImcxIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMwYTJkNWMiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMWI1ZWE4Ii8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8cmVjdCB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9InVybCgjZzEpIi8+CiAgPHJlY3QgeD0iODAiIHk9IjI4MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjkwIiByeD0iNiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjE1KSIvPgogIDxyZWN0IHg9IjIwMCIgeT0iMjIwIiB3aWR0aD0iODAiIGhlaWdodD0iMTUwIiByeD0iNiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjIpIi8+CiAgPHJlY3QgeD0iMzIwIiB5PSIxNjAiIHdpZHRoPSI4MCIgaGVpZ2h0PSIyMTAiIHJ4PSI2IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMjUpIi8+CiAgPHJlY3QgeD0iNDQwIiB5PSIyMDAiIHdpZHRoPSI4MCIgaGVpZ2h0PSIxNzAiIHJ4PSI2IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMikiLz4KICA8cmVjdCB4PSI1NjAiIHk9IjEzMCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjI0MCIgcng9IjYiIGZpbGw9InJnYmEoMTExLDIyNiwyNDUsMC40KSIvPgogIDxyZWN0IHg9IjY4MCIgeT0iMTAwIiB3aWR0aD0iODAiIGhlaWdodD0iMjcwIiByeD0iNiIgZmlsbD0icmdiYSgxMTEsMjI2LDI0NSwwLjUpIi8+CiAgPHJlY3QgeD0iODAwIiB5PSIxNTAiIHdpZHRoPSI4MCIgaGVpZ2h0PSIyMjAiIHJ4PSI2IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMjUpIi8+CiAgPHJlY3QgeD0iOTIwIiB5PSI4MCIgd2lkdGg9IjgwIiBoZWlnaHQ9IjI5MCIgcng9IjYiIGZpbGw9InJnYmEoMTExLDIyNiwyNDUsMC42KSIvPgogIDxyZWN0IHg9IjEwNDAiIHk9IjYwIiB3aWR0aD0iODAiIGhlaWdodD0iMzEwIiByeD0iNiIgZmlsbD0icmdiYSgxMTEsMjI2LDI0NSwwLjcpIi8+CiAgPHBvbHlsaW5lIHBvaW50cz0iMTIwLDI4MCAyNDAsMjIwIDM2MCwxNjAgNDgwLDIwMCA2MDAsMTMwIDcyMCwxMDAgODQwLDE1MCA5NjAsODAgMTA4MCw2MCIKICAgIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNDQsMTkxLDEwMCwwLjkpIiBzdHJva2Utd2lkdGg9IjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDxjaXJjbGUgY3g9IjEyMCIgY3k9IjI4MCIgcj0iNiIgZmlsbD0iI2Y0YmY2NCIvPgogIDxjaXJjbGUgY3g9IjM2MCIgY3k9IjE2MCIgcj0iNiIgZmlsbD0iI2Y0YmY2NCIvPgogIDxjaXJjbGUgY3g9IjYwMCIgY3k9IjEzMCIgcj0iNiIgZmlsbD0iI2Y0YmY2NCIvPgogIDxjaXJjbGUgY3g9Ijk2MCIgY3k9IjgwIiByPSI2IiBmaWxsPSIjZjRiZjY0Ii8+CiAgPGNpcmNsZSBjeD0iMTA4MCIgY3k9IjYwIiByPSI2IiBmaWxsPSIjZjRiZjY0Ii8+Cjwvc3ZnPg==" alt="Аналитика" />
             <p>Финансовая аналитика и стратегические решения</p>
         </div>
         <div class="hero-tile">
-            <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80" alt="Бизнес-отчеты" />
+            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAwIDQwMCI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImcyIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxYjVlYTgiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMmE4N2M4Ii8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8cmVjdCB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9InVybCgjZzIpIi8+CiAgPHJlY3QgeD0iMjAwIiB5PSI2MCIgd2lkdGg9IjMyMCIgaGVpZ2h0PSIyODAiIHJ4PSIxMiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEyKSIvPgogIDxyZWN0IHg9IjIyMCIgeT0iODUiIHdpZHRoPSIyMDAiIGhlaWdodD0iMTIiIHJ4PSI0IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuNCkiLz4KICA8cmVjdCB4PSIyMjAiIHk9IjExMCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSI4IiByeD0iMyIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjIpIi8+CiAgPHJlY3QgeD0iMjIwIiB5PSIxMjgiIHdpZHRoPSIyNDAiIGhlaWdodD0iOCIgcng9IjMiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4yKSIvPgogIDxyZWN0IHg9IjIyMCIgeT0iMTQ2IiB3aWR0aD0iMjYwIiBoZWlnaHQ9IjgiIHJ4PSIzIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMikiLz4KICA8cmVjdCB4PSIyMjAiIHk9IjE3NSIgd2lkdGg9IjI4MCIgaGVpZ2h0PSIxMDAiIHJ4PSI2IiBmaWxsPSJyZ2JhKDExMSwyMjYsMjQ1LDAuMTUpIi8+CiAgPHBvbHlsaW5lIHBvaW50cz0iMjM1LDI2MCAyNzAsMjMwIDMwNSwyNDUgMzQwLDIxNSAzNzUsMjIwIDQxMCwyMDAgNDQ1LDIxMCA0ODAsMTk1IgogICAgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDI0NCwxOTEsMTAwLDAuOCkiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPHJlY3QgeD0iMjIwIiB5PSIyOTUiIHdpZHRoPSIxMDAiIGhlaWdodD0iOCIgcng9IjMiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4yKSIvPgogIDxyZWN0IHg9IjM0MCIgeT0iMjk1IiB3aWR0aD0iMTQwIiBoZWlnaHQ9IjgiIHJ4PSIzIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMikiLz4KICA8cmVjdCB4PSI1NjAiIHk9IjYwIiB3aWR0aD0iNDQwIiBoZWlnaHQ9IjI4MCIgcng9IjEyIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDgpIi8+CiAgPHJlY3QgeD0iNTgwIiB5PSI4NSIgd2lkdGg9IjE2MCIgaGVpZ2h0PSIxMiIgcng9IjQiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4zNSkiLz4KICA8cmVjdCB4PSI1ODAiIHk9IjExNSIgd2lkdGg9IjQwMCIgaGVpZ2h0PSIxODAiIHJ4PSI2IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDYpIi8+CiAgPHJlY3QgeD0iNTk1IiB5PSIxMzAiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjMpIi8+CiAgPHJlY3QgeD0iNjk1IiB5PSIxMzAiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjMpIi8+CiAgPHJlY3QgeD0iNzk1IiB5PSIxMzAiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjMpIi8+CiAgPHJlY3QgeD0iODk1IiB5PSIxMzAiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjMpIi8+CiAgPHJlY3QgeD0iNTk1IiB5PSIxNTUiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgxMTEsMjI2LDI0NSwwLjUpIi8+CiAgPHJlY3QgeD0iNjk1IiB5PSIxNTUiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgxMTEsMjI2LDI0NSwwLjQpIi8+CiAgPHJlY3QgeD0iNzk1IiB5PSIxNTUiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgxMTEsMjI2LDI0NSwwLjYpIi8+CiAgPHJlY3QgeD0iODk1IiB5PSIxNTUiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgyNDQsMTkxLDEwMCwwLjcpIi8+CiAgPHJlY3QgeD0iNTk1IiB5PSIxNzgiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjIpIi8+CiAgPHJlY3QgeD0iNjk1IiB5PSIxNzgiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjIpIi8+CiAgPHJlY3QgeD0iNzk1IiB5PSIxNzgiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjIpIi8+CiAgPHJlY3QgeD0iODk1IiB5PSIxNzgiIHdpZHRoPSI2MCIgaGVpZ2h0PSI4IiByeD0iMiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjIpIi8+Cjwvc3ZnPg==" alt="Бизнес-отчеты" />
             <p>Прозрачные отчёты для контроля рентабельности</p>
         </div>
         <div class="hero-tile">
-            <img src="https://images.unsplash.com/photo-1520607162513-77705c0f0d4a?auto=format&fit=crop&w=1200&q=80" alt="Рост компании" />
+            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAwIDQwMCI+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImczIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMwYTJkNWMiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMmE4N2M4Ii8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8cmVjdCB3aWR0aD0iMTIwMCIgaGVpZ2h0PSI0MDAiIGZpbGw9InVybCgjZzMpIi8+CiAgPHJlY3QgeD0iNjAiIHk9IjYwIiB3aWR0aD0iMjQwIiBoZWlnaHQ9IjEyMCIgcng9IjEyIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMTIpIi8+CiAgPHRleHQgeD0iODAiIHk9IjEwMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuNikiPtCg0LXQvdGC0LDQsdC10LvRjNC90L7RgdGC0Yw8L3RleHQ+CiAgPHRleHQgeD0iODAiIHk9IjE0MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM0IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0id2hpdGUiPjI0LjMlPC90ZXh0PgogIDx0ZXh0IHg9IjgwIiB5PSIxNjUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMyIgZmlsbD0icmdiYSgxMTEsMjI2LDI0NSwwLjkpIj7ilrIgKzIuMSUg0Log0L/RgNC+0YjQu9C+0LzRgzwvdGV4dD4KICA8cmVjdCB4PSIzNDAiIHk9IjYwIiB3aWR0aD0iMjQwIiBoZWlnaHQ9IjEyMCIgcng9IjEyIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMTIpIi8+CiAgPHRleHQgeD0iMzYwIiB5PSIxMDAiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjYpIj7Qm9C40LrQstC40LTQvdC+0YHRgtGMPC90ZXh0PgogIDx0ZXh0IHg9IjM2MCIgeT0iMTQwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMzQiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSI+MS44NzwvdGV4dD4KICA8dGV4dCB4PSIzNjAiIHk9IjE2NSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEzIiBmaWxsPSJyZ2JhKDI0NCwxOTEsMTAwLDAuOSkiPuKGkiDQndC+0YDQvNCwPC90ZXh0PgogIDxyZWN0IHg9IjYyMCIgeT0iNjAiIHdpZHRoPSIyNDAiIGhlaWdodD0iMTIwIiByeD0iMTIiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xMikiLz4KICA8dGV4dCB4PSI2NDAiIHk9IjEwMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuNikiPtCS0YvRgNGD0YfQutCwPC90ZXh0PgogIDx0ZXh0IHg9IjY0MCIgeT0iMTQwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjgiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSI+NC4yINC80LvQvSDigr08L3RleHQ+CiAgPHRleHQgeD0iNjQwIiB5PSIxNjUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMyIgZmlsbD0icmdiYSgxMTEsMjI2LDI0NSwwLjkpIj7ilrIgKzEyJSDQuiDQv9GA0L7RiNC70L7QvNGDPC90ZXh0PgogIDxyZWN0IHg9IjkwMCIgeT0iNjAiIHdpZHRoPSIyNDAiIGhlaWdodD0iMTIwIiByeD0iMTIiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xMikiLz4KICA8dGV4dCB4PSI5MjAiIHk9IjEwMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuNikiPtCU0L7Qu9GPINC30LDRgtGA0LDRgjwvdGV4dD4KICA8dGV4dCB4PSI5MjAiIHk9IjE0MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjM0IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0id2hpdGUiPjc1LjclPC90ZXh0PgogIDx0ZXh0IHg9IjkyMCIgeT0iMTY1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTMiIGZpbGw9InJnYmEoMjU1LDEyMCwxMjAsMC45KSI+4pa8INCS0YvRgdC+0LrQsNGPPC90ZXh0PgogIDxyZWN0IHg9IjYwIiB5PSIyMjAiIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjE0MCIgcng9IjEyIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDcpIi8+CiAgPHBvbHlsaW5lIHBvaW50cz0iODAsMzQwIDE4MCwzMTAgMzAwLDI5MCA0MjAsMzAwIDU0MCwyNjUgNjYwLDI0MCA3ODAsMjU1IDkwMCwyMzAgMTAyMCwyMTAgMTEyMCwxOTUiCiAgICBmaWxsPSJub25lIiBzdHJva2U9InJnYmEoMTExLDIyNiwyNDUsMC44KSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cG9seWxpbmUgcG9pbnRzPSI4MCwzNTAgMTgwLDM0NSAzMDAsMzQwIDQyMCwzNDggNTQwLDMzNSA2NjAsMzIwIDc4MCwzMzAgOTAwLDMxNSAxMDIwLDMwMCAxMTIwLDI5MCIKICAgIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNDQsMTkxLDEwMCwwLjYpIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWRhc2hhcnJheT0iOCw0Ii8+Cjwvc3ZnPg==" alt="Рост компании" />
             <p>Компактный мониторинг ключевых метрик</p>
         </div>
     </div>
@@ -589,7 +603,7 @@ def _fetch_odata_rows(url, auth, timeout=40):
     rows = []
     next_url = url
     while next_url:
-        resp = requests.get(next_url, auth=auth, timeout=timeout)
+        resp = requests.get(next_url, auth=auth, timeout=timeout, verify=False)
         resp.raise_for_status()
         payload = resp.json()
         rows.extend(payload.get("value", []))
@@ -723,7 +737,7 @@ def _auto_liquidity_from_accounting(odata_base_url, username, password, year, co
 def debug_1c_collections_and_fields(odata_base_url, username, password):
     odata_base_url = odata_base_url.strip().rstrip("/") + "/"
     auth = (username, password)
-    service_resp = requests.get(odata_base_url, auth=auth, timeout=35)
+    service_resp = requests.get(odata_base_url, auth=auth, timeout=35, verify=False)
     service_resp.raise_for_status()
     root = ET.fromstring(service_resp.text)
     collections = [c.attrib.get("href", "") for c in root.findall(".//{http://www.w3.org/2007/app}collection")]
@@ -761,7 +775,7 @@ def debug_1c_collections_and_fields(odata_base_url, username, password):
 def fetch_1c_monthly_revenue_cost(odata_base_url, username, password, year):
     odata_base_url = odata_base_url.strip().rstrip("/") + "/"
 
-    service_resp = requests.get(odata_base_url, auth=(username, password), timeout=35)
+    service_resp = requests.get(odata_base_url, auth=(username, password), timeout=35, verify=False)
     service_resp.raise_for_status()
     root = ET.fromstring(service_resp.text)
     collections = [c.attrib.get("href", "") for c in root.findall(".//{http://www.w3.org/2007/app}collection")]
@@ -779,7 +793,7 @@ def fetch_1c_monthly_revenue_cost(odata_base_url, username, password, year):
         for name in candidates:
             encoded_name = quote(name, safe="/()_")
             url = f"{odata_base_url}{encoded_name}?$format=json"
-            resp = requests.get(url, auth=(username, password), timeout=35)
+            resp = requests.get(url, auth=(username, password), timeout=35, verify=False)
             if resp.status_code >= 400:
                 continue
             payload = resp.json()
@@ -814,7 +828,7 @@ def fetch_1c_monthly_revenue_cost(odata_base_url, username, password, year):
 # ==================== ЗАГРУЗКА ДАННЫХ ====================
 source_mode = st.radio(
     "Источник данных",
-    ["Excel / CSV", "1С OData"],
+    ["Excel / CSV", "1С OData", "Ручной ввод"],
     horizontal=True
 )
 
@@ -839,7 +853,7 @@ if source_mode == "Excel / CSV":
         label_visibility="collapsed",
         key="main_uploader"
     )
-else:
+elif source_mode == "1С OData":
     st.markdown("""
     <div class="data-guide">
         <h4>Автосбор из 1С:Фреш (OData)</h4>
@@ -906,6 +920,98 @@ else:
             df['Краткосрочные обязательства'] = float(short_liab)
             st.session_state["df_1c"] = df.copy()
             st.success("Поля для ликвидности добавлены.")
+
+# ── Ручной ввод ────────────────────────────────────────────────────
+elif source_mode == "Ручной ввод":
+    MONTH_NAMES  = ["Январь","Февраль","Март","Апрель","Май","Июнь",
+                    "Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"]
+    BASE_FIELDS  = ["Выручка", "Себестоимость"]
+    EXTRA_FIELDS = ["Оборотные активы", "Краткосрочные обязательства",
+                    "Дебиторская задолженность", "Кредиторская задолженность", "Запасы"]
+
+    st.markdown("""
+    <div class="data-guide">
+        <h4>Ручной ввод данных по месяцам</h4>
+        <p><b>Обязательные:</b> Выручка и Себестоимость. Включите «Расширенные поля» для ликвидности и оборотного капитала.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    mc1, mc2 = st.columns([3, 1])
+    with mc1:
+        manual_year = st.number_input(
+            "Год", min_value=2000, max_value=2100,
+            value=datetime.now().year, step=1, key="manual_year"
+        )
+    with mc2:
+        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        show_extra = st.checkbox("Расширенные поля", value=False, key="manual_extra")
+
+    # Сброс при смене года
+    if "manual_data" not in st.session_state or st.session_state.get("manual_year_prev") != manual_year:
+        st.session_state["manual_data"] = {f: [0.0]*12 for f in BASE_FIELDS + EXTRA_FIELDS}
+        st.session_state["manual_year_prev"] = manual_year
+
+    fields_to_show = BASE_FIELDS + (EXTRA_FIELDS if show_extra else [])
+
+    # ── data_editor — единая таблица-сетка ──────────────────────
+    # Берём данные из состояния виджета если он уже был отрендерен,
+    # иначе из manual_data. Это устраняет баг с потерей первого ввода.
+    if "manual_editor" in st.session_state:
+        prev = st.session_state["manual_editor"]
+        src = {
+            "Месяц": MONTH_NAMES,
+            **{
+                f: [float(prev["edited_rows"].get(i, {}).get(f, st.session_state["manual_data"][f][i]))
+                    for i in range(12)]
+                for f in fields_to_show
+            }
+        }
+    else:
+        src = {"Месяц": MONTH_NAMES, **{f: st.session_state["manual_data"][f] for f in fields_to_show}}
+
+    editor_df = pd.DataFrame(src)
+
+    col_config = {
+        "Месяц": st.column_config.TextColumn("Месяц", disabled=True, width="medium")
+    }
+    for field in fields_to_show:
+        col_config[field] = st.column_config.NumberColumn(
+            field + ", руб.",
+            min_value=0,
+            step=1000,
+            format="%d ₽",
+        )
+
+    edited = st.data_editor(
+        editor_df,
+        column_config=col_config,
+        hide_index=True,
+        use_container_width=True,
+        num_rows="fixed",
+        height=457,
+        key="manual_editor",
+    )
+
+    # Сохраняем актуальные значения в manual_data
+    for field in fields_to_show:
+        st.session_state["manual_data"][field] = list(edited[field].fillna(0.0))
+
+    st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
+    if st.button("▶  Запустить анализ", type="primary", key="manual_run"):
+        periods = [f"{int(manual_year)}-{m+1:02d}" for m in range(12)]
+        df_manual = pd.DataFrame({"Период": periods})
+        for field in fields_to_show:
+            df_manual[field] = st.session_state["manual_data"][field]
+        mask = (df_manual["Выручка"] != 0) | (df_manual["Себестоимость"] != 0)
+        df_manual = df_manual[mask].reset_index(drop=True)
+        if df_manual.empty:
+            st.warning("Заполните хотя бы один месяц.")
+        else:
+            st.session_state["df_manual"] = df_manual.copy()
+            st.success(f"Загружено {len(df_manual)} мес. Результаты анализа — ниже ↓")
+
+    if df is None and "df_manual" in st.session_state:
+        df = st.session_state["df_manual"].copy()
 
 # ==================== АНАЛИЗ ДАННЫХ ====================
 if uploaded_file is not None or df is not None:
@@ -999,6 +1105,124 @@ if uploaded_file is not None or df is not None:
                             unsafe_allow_html=True
                         )
             
+            # ==================== СРАВНЕНИЕ ПЕРИОДОВ ====================
+            st.markdown("---")
+            st.markdown('<div class="section-title">Сравнение периодов</div>', unsafe_allow_html=True)
+
+            period_list = list(df['Период'].astype(str))
+            if len(period_list) >= 2:
+                c1, c2 = st.columns(2)
+                with c1:
+                    per_a = st.selectbox("Период А", options=period_list, index=0, key="per_a")
+                with c2:
+                    per_b = st.selectbox("Период Б", options=period_list, index=len(period_list) - 1, key="per_b")
+
+                if per_a != per_b:
+                    row_a = df[df['Период'].astype(str) == per_a].iloc[0]
+                    row_b = df[df['Период'].astype(str) == per_b].iloc[0]
+
+                    # Метрики для сравнения — только те, что есть в данных
+                    compare_cols = [
+                        ('Выручка',              '{:,.0f} ₽',  False),
+                        ('Себестоимость',         '{:,.0f} ₽',  False),
+                        ('Валовая прибыль',       '{:,.0f} ₽',  False),
+                        ('Рентабельность (%)',    '{:.1f}%',    True),
+                        ('Доля затрат (%)',       '{:.1f}%',    True),
+                        ('Ликвидность',           '{:.2f}',     True),
+                        ('Дней дебиторки',        '{:.1f}',     True),
+                        ('Дней кредиторки',       '{:.1f}',     True),
+                        ('Дней запасов',          '{:.1f}',     True),
+                        ('Операционная маржа (%)','{:.1f}%',    True),
+                    ]
+
+                    table_rows = []
+                    for col, fmt, _ in compare_cols:
+                        if col not in df.columns:
+                            continue
+                        val_a = row_a.get(col)
+                        val_b = row_b.get(col)
+                        if pd.isna(val_a) and pd.isna(val_b):
+                            continue
+
+                        def fmt_val(v, f):
+                            if pd.isna(v):
+                                return '—'
+                            return f.format(v)
+
+                        # Изменение
+                        if pd.notna(val_a) and pd.notna(val_b) and val_a != 0:
+                            chg_abs = val_b - val_a
+                            chg_pct = chg_abs / abs(val_a) * 100
+                            sign = '+' if chg_abs >= 0 else ''
+                            arrow = '▲' if chg_abs > 0 else ('▼' if chg_abs < 0 else '→')
+                            chg_str = f"{arrow} {sign}{chg_pct:.1f}%"
+                        else:
+                            chg_str = '—'
+                            chg_abs = None
+
+                        table_rows.append({
+                            'Показатель':          col,
+                            per_a:                 fmt_val(val_a, fmt),
+                            per_b:                 fmt_val(val_b, fmt),
+                            'Изменение':           chg_str,
+                            '_chg':                chg_abs,  # для подсветки, удалим ниже
+                        })
+
+                    if table_rows:
+                        df_cmp = pd.DataFrame(table_rows)
+
+                        # Цветовая подсветка строк через HTML
+                        def row_color(chg, col_name):
+                            # Для затратных метрик рост — плохо, снижение — хорошо
+                            bad_if_up = {'Себестоимость', 'Доля затрат (%)', 'Дней дебиторки',
+                                         'Дней кредиторки', 'Дней запасов'}
+                            if chg is None or pd.isna(chg) or chg == 0:
+                                return ''
+                            good = chg > 0
+                            if col_name in bad_if_up:
+                                good = not good
+                            return 'background-color:#f0fff4' if good else 'background-color:#fff4f4'
+
+                        html_rows = ''
+                        for _, r in df_cmp.iterrows():
+                            bg = row_color(r['_chg'], r['Показатель'])
+                            chg_color = ''
+                            if r['_chg'] is not None and not pd.isna(r['_chg']):
+                                bad_if_up = {'Себестоимость', 'Доля затрат (%)', 'Дней дебиторки',
+                                             'Дней кредиторки', 'Дней запасов'}
+                                good = r['_chg'] > 0
+                                if r['Показатель'] in bad_if_up:
+                                    good = not good
+                                chg_color = 'color:#1a5c32;font-weight:600' if good else 'color:#8b1a1a;font-weight:600'
+                            html_rows += (
+                                f"<tr style='{bg}'>"
+                                f"<td style='padding:.4rem .6rem;border-bottom:1px solid #e0edf7'>{r['Показатель']}</td>"
+                                f"<td style='padding:.4rem .6rem;border-bottom:1px solid #e0edf7;text-align:right'>{r[per_a]}</td>"
+                                f"<td style='padding:.4rem .6rem;border-bottom:1px solid #e0edf7;text-align:right'>{r[per_b]}</td>"
+                                f"<td style='padding:.4rem .6rem;border-bottom:1px solid #e0edf7;text-align:center;{chg_color}'>{r['Изменение']}</td>"
+                                f"</tr>"
+                            )
+
+                        table_html = f"""
+                        <table style='width:100%;border-collapse:collapse;font-size:.88rem;background:white;border-radius:10px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.06)'>
+                          <thead>
+                            <tr style='background:#1e3a6f;color:white'>
+                              <th style='padding:.5rem .6rem;text-align:left'>Показатель</th>
+                              <th style='padding:.5rem .6rem;text-align:right'>{per_a}</th>
+                              <th style='padding:.5rem .6rem;text-align:right'>{per_b}</th>
+                              <th style='padding:.5rem .6rem;text-align:center'>Изменение</th>
+                            </tr>
+                          </thead>
+                          <tbody>{html_rows}</tbody>
+                        </table>
+                        """
+                        st.markdown(table_html, unsafe_allow_html=True)
+                        st.caption("▲ рост &nbsp;|&nbsp; ▼ снижение &nbsp;|&nbsp; зелёный = улучшение, красный = ухудшение")
+                else:
+                    st.info("Выберите два разных периода для сравнения.")
+            else:
+                st.info("Недостаточно данных для сравнения (нужно минимум 2 периода).")
+
             # Графики
             with st.expander("Развернуть детальные графики и таблицы"):
                 fig = make_subplots(specs=[[{"secondary_y": True}]])
